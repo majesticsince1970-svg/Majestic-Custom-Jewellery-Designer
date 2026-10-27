@@ -18,7 +18,8 @@ import {
   AlertCircle,
   Gem,
   Layers,
-  FileArchive
+  FileArchive,
+  Clock
 } from 'lucide-react';
 
 export const Results: React.FC = () => {
@@ -26,6 +27,7 @@ export const Results: React.FC = () => {
 
   const [request, setRequest] = useState<DesignRequest | null>(null);
   const [variations, setVariations] = useState<DesignVariation[]>([]);
+  const [presetList, setPresetList] = useState<ProductPreset[]>([]);
   const [presets, setPresets] = useState<Record<string, ProductPreset>>({});
   const [letteringMap, setLetteringMap] = useState<Record<string, string>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -35,6 +37,7 @@ export const Results: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [downloadingZip, setDownloadingZip] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Fetch initial data
   const fetchData = useCallback(async () => {
@@ -53,16 +56,20 @@ export const Results: React.FC = () => {
       }
       setRequest(reqData);
 
-      // 2. Fetch presets
+      // 2. Fetch presets for product type
       const { data: presetData } = await supabase
         .from('product_presets')
         .select('*')
-        .eq('product_type', reqData.product_type);
+        .eq('product_type', reqData.product_type)
+        .order('variant_index', { ascending: true });
 
       const pMap: Record<string, ProductPreset> = {};
-      presetData?.forEach((p) => {
-        pMap[p.id] = p;
-      });
+      if (presetData) {
+        setPresetList(presetData);
+        presetData.forEach((p) => {
+          pMap[p.id] = p;
+        });
+      }
       setPresets(pMap);
 
       // 3. Fetch lettering references
@@ -104,7 +111,6 @@ export const Results: React.FC = () => {
       const childrenMap: Record<string, DesignVariation[]> = {};
 
       for (const v of varData || []) {
-        // Hydrate signed URL if done
         let signedUrl = v.signedUrl;
         if (v.status === 'done' && v.image_path) {
           try {
@@ -128,7 +134,6 @@ export const Results: React.FC = () => {
         }
       }
 
-      // Attach refined versions to parents
       topLevel.forEach((parent) => {
         parent.children = childrenMap[parent.id] || [];
       });
@@ -146,7 +151,7 @@ export const Results: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  // Subscribe to Supabase Realtime updates on design_variations
+  // Realtime subscription + active fallback polling
   useEffect(() => {
     if (!requestId) return;
 
@@ -160,31 +165,38 @@ export const Results: React.FC = () => {
           table: 'design_variations',
           filter: `request_id=eq.${requestId}`,
         },
-        async (payload) => {
-          // Refresh list on realtime status change
+        async () => {
           await fetchData();
         }
       )
       .subscribe();
 
+    // Auto-poll every 3 seconds while designs are still generating
+    const pollInterval = setInterval(() => {
+      if (variations.some((v) => v.status === 'queued' || v.status === 'running') || variations.length < 5) {
+        fetchData();
+        setElapsedSeconds((s) => s + 3);
+      }
+    }, 3000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
-  }, [requestId, fetchData]);
+  }, [requestId, fetchData, variations]);
 
-  // Trigger celebration confetti when all 5 top-level designs are done
+  // Confetti when all 5 are done
   useEffect(() => {
     if (variations.length >= 5 && variations.every((v) => v.status === 'done')) {
       confetti({
-        particleCount: 80,
-        spread: 70,
+        particleCount: 90,
+        spread: 80,
         origin: { y: 0.6 },
         colors: ['#C59E4E', '#EFE2C2', '#8F6C2A', '#D4AF37'],
       });
     }
   }, [variations]);
 
-  // Toggle selection
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -200,7 +212,6 @@ export const Results: React.FC = () => {
     }
   };
 
-  // Download single image
   const handleDownloadSingle = async (variation: DesignVariation) => {
     try {
       await downloadSingleDesign(variation, request || undefined);
@@ -209,7 +220,6 @@ export const Results: React.FC = () => {
     }
   };
 
-  // Download selected as ZIP
   const handleDownloadSelectedZip = async () => {
     const selectedVars = variations.filter((v) => selectedIds.includes(v.id) && v.status === 'done');
     if (selectedVars.length === 0) return;
@@ -227,7 +237,6 @@ export const Results: React.FC = () => {
     }
   };
 
-  // Regenerate variation
   const handleRegenerate = async (variation: DesignVariation) => {
     try {
       const { error } = await supabase.functions.invoke('regenerate-variation', {
@@ -240,7 +249,6 @@ export const Results: React.FC = () => {
     }
   };
 
-  // Refine variation
   const handleRefineSubmit = async (variationId: string, instruction: string) => {
     const { error } = await supabase.functions.invoke('refine-variation', {
       body: { variation_id: variationId, instruction },
@@ -254,7 +262,7 @@ export const Results: React.FC = () => {
       <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 space-y-4">
         <Loader2 className="w-10 h-10 animate-spin text-majestic-600" />
         <p className="text-sm font-serif font-bold text-stone-800">
-          Loading Majestic Atelier Showroom Set...
+          Loading Majestic Atelier Studio Set...
         </p>
       </div>
     );
@@ -278,6 +286,35 @@ export const Results: React.FC = () => {
   }
 
   const readyCount = variations.filter((v) => v.status === 'done').length;
+  const isStillGenerating = variations.length < 5 || variations.some((v) => v.status === 'queued' || v.status === 'running');
+
+  // Display items: either actual variations, or merged with presets for immediate preview
+  const displayVariations: { variation: DesignVariation; preset?: ProductPreset }[] = [];
+  
+  if (variations.length > 0) {
+    variations.slice(0, 5).forEach((v) => {
+      const p = presets[v.preset_id || ''] || v.product_presets;
+      displayVariations.push({ variation: v, preset: p });
+    });
+  } else if (presetList.length > 0) {
+    // Show 5 placeholder cards while function kicks off
+    presetList.slice(0, 5).forEach((p, idx) => {
+      displayVariations.push({
+        preset: p,
+        variation: {
+          id: `placeholder_${idx}`,
+          request_id: requestId!,
+          preset_id: p.id,
+          variant_index: p.variant_index,
+          prompt: '',
+          prompt_version: 'v1',
+          model: 'gpt-image-2',
+          status: 'running',
+          created_at: new Date().toISOString(),
+        },
+      });
+    });
+  }
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -311,7 +348,6 @@ export const Results: React.FC = () => {
             </div>
           </div>
 
-          {/* Tag Badges */}
           <div className="flex flex-wrap items-center gap-2 pt-2">
             {request.allowed_golds?.map((g) => (
               <span key={g} className="px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 text-[11px] font-medium">
@@ -375,10 +411,32 @@ export const Results: React.FC = () => {
 
       </div>
 
+      {/* Progress Notification Bar while generating */}
+      {isStillGenerating && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+            <div>
+              <p className="text-xs font-bold">
+                Sculpting AI Concepts in Parallel ({readyCount}/5 Ready)
+              </p>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                The atelier is rendering studio lighting and precious metal reflections for each preset. Results appear dynamically below.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-mono text-amber-900 bg-white/80 px-3 py-1.5 rounded-xl border border-amber-200 shrink-0">
+            <Clock className="w-3.5 h-3.5 text-amber-700" />
+            <span>Time elapsed: ~{elapsedSeconds}s</span>
+          </div>
+        </div>
+      )}
+
       {/* 5 Presets Design Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-        {variations.slice(0, 5).map((variation) => {
-          const preset = presets[variation.preset_id || ''] || variation.product_presets;
+        {displayVariations.map(({ variation, preset }) => {
           const letteringUrl = preset?.preset_key ? letteringMap[preset.preset_key] : undefined;
 
           return (

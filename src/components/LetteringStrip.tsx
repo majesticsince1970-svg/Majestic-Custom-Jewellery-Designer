@@ -115,3 +115,4 @@ export const LetteringStrip: React.FC<LetteringStripProps> = ({
     </div>
   );
 };
+

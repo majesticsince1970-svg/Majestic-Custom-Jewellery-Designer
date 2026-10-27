@@ -131,3 +131,4 @@ export async function renderLetteringCanvas(options: RenderLetteringOptions): Pr
     blob,
   };
 }
+

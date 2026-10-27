@@ -14,9 +14,11 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!;
-    const imageModel = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-2-2026-04-21";
+    const imageModel = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-2";
 
-    const { variation_id, instruction } = await req.json();
+    const body = await req.json();
+    const { variation_id, instruction } = body;
+
     if (!variation_id || !instruction) {
       return new Response(JSON.stringify({ error: "variation_id and instruction are required" }), {
         status: 400,
@@ -66,7 +68,6 @@ serve(async (req: Request) => {
         let imageB64: string | null = null;
         let fileList: any[] = [];
 
-        // Download parent image if available
         if (parentVar.image_path) {
           const { data: parentImgBlob } = await supabase.storage.from("designs").download(parentVar.image_path);
           if (parentImgBlob) {
@@ -83,7 +84,6 @@ serve(async (req: Request) => {
               prompt: refinedPrompt,
               n: 1,
               size: "1024x1024",
-              response_format: "b64_json",
             });
             imageB64 = res.data[0]?.b64_json;
           } catch (e: any) {
@@ -93,11 +93,10 @@ serve(async (req: Request) => {
 
         if (!imageB64) {
           const genRes = await openai.images.generate({
-            model: "dall-e-3",
+            model: imageModel,
             prompt: refinedPrompt,
             n: 1,
             size: "1024x1024",
-            response_format: "b64_json",
           });
           imageB64 = genRes.data[0]?.b64_json || null;
         }

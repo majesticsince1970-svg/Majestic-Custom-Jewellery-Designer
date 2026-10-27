@@ -121,3 +121,4 @@ export const Header: React.FC<HeaderProps> = ({ profile, onLogout }) => {
     </header>
   );
 };
+

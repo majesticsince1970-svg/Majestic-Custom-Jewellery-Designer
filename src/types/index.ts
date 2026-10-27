@@ -82,3 +82,4 @@ export interface DesignVariation {
   signedUrl?: string;
   children?: DesignVariation[];
 }
+

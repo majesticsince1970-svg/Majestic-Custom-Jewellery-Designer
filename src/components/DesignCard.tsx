@@ -225,3 +225,4 @@ export const DesignCard: React.FC<DesignCardProps> = ({
     </div>
   );
 };
+

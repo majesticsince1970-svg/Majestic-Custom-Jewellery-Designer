@@ -914,3 +914,4 @@ export const NewDesign: React.FC = () => {
     </div>
   );
 };
+

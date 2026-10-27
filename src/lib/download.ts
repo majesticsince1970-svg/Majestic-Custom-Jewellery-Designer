@@ -95,3 +95,4 @@ export async function downloadSelectedDesignsAsZip(
   const zipFileName = `Majestic_Custom_Designs_${sanitizeFileName(namePart)}_${new Date().toISOString().slice(0, 10)}.zip`;
   saveAs(zipBlob, zipFileName);
 }
+

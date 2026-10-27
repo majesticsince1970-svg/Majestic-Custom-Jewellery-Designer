@@ -94,3 +94,4 @@ flowchart LR
 ---
 
 © 1970–2026 Majestic Jewellers. All rights reserved.
+

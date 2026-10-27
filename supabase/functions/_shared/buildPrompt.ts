@@ -100,3 +100,4 @@ export function buildPrompt(req: RequestData, preset: PresetData, hasCustomerRef
   // "Create a realistic studio product photo of a {PRODUCT_TYPE}: {PRODUCT_STYLE_DESCRIPTION}.Metal: {GOLD_COLOUR}, {FINISH}. {PRODUCT_DETAILS}[NAME/NO NAME]Lettering and design style: {STYLE_DESCRIPTION} Gemstones: {STONE_DESCRIPTION}[REFERENCES]View: {VIEW}. Plain soft white background, soft jewellery lighting, sharp focus, no hands, no logo, no watermark."
   return `Create a realistic studio product photo of a ${productType}: ${styleDesc}. Metal: ${gold}, ${finish}. ${productDetails}${nameBlock}Lettering and design style: ${letteringAndStyle}. Gemstones: ${stoneDesc}. ${customerNotes}${refsBlock}View: ${view}. Plain soft white background, soft jewellery lighting, sharp focus, macro jewelry photography, no hands, no person, no watermark, no logo.`;
 }
+

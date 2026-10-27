@@ -194,3 +194,4 @@ export const GOLD_OPTIONS = [
   { value: 'Two-tone 18K yellow & white', label: 'Two-Tone 18K Yellow & White Gold', swatch: 'linear-gradient(135deg, #E6CA65 50%, #E2E4E6 50%)' },
   { value: 'Platinum 950', label: 'Platinum 950 (Ultra Pure & Heavy)', swatch: '#D8DCE3' },
 ];
+

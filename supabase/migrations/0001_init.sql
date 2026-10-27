@@ -255,3 +255,4 @@ SET
   finish = EXCLUDED.finish,
   stone_text = EXCLUDED.stone_text,
   view_text = EXCLUDED.view_text;
+
